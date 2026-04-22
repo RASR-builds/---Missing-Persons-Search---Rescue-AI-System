@@ -171,15 +171,16 @@ def run_app():
 
     with right:
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Demo Notes")
+        st.subheader("System Status")
+
         st.markdown(
             """
-            - A visible loading panel shows agent progress during execution.
-            - The LLM is applied across all five agents, not just side notes.
-            - If the API fails, deterministic logic still produces a usable mission plan.
+            - Multi-agent pipeline active  
+            - LLM enhancement configurable  
+            - Deterministic fallback enabled  
             """
         )
-        st.markdown('<p class="small-note">Because nothing says confidence like watching a UI reassure you while the internet decides whether to cooperate.</p>', unsafe_allow_html=True)
+        
         st.markdown('</div>', unsafe_allow_html=True)
 
     if submitted:
