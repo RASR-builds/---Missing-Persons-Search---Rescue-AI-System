@@ -1,85 +1,121 @@
-# Missing Persons Search & Rescue AI System
+# 🚁 Missing Persons Search & Rescue AI System
 
-A structured multi-agent Streamlit application for CSCI 4800 Exam 3.
+A multi-agent AI system that simulates real-world search-and-rescue coordination using both deterministic logic and LLM-enhanced reasoning.
 
-This version includes:
-- a cleaner project structure
-- a polished Streamlit dashboard
-- real LLM calls through the OpenAI Responses API
-- deterministic fallback logic for demo stability
+Built for **CSCI 4800 – Intelligent Systems**
 
-## Why this design is strong
+---
 
-Each agent has:
-1. A clear role
-2. A prompt
-3. Deterministic logic
-4. Optional LLM enhancement
+## 🧠 Overview
 
-This means the app can demonstrate true LLM-powered agent behavior while still remaining stable if the API key is missing or a network issue occurs.
+This project models a **search-and-rescue operation** using a pipeline of specialized agents. Each agent contributes to generating a complete mission plan for locating a missing person.
 
-## Project Structure
+The system combines:
+- **Rule-based logic** (reliable baseline)
+- **LLM-enhanced reasoning** (context-aware improvements)
 
-```text
-search_rescue_exam_project_llm_ui/
+This hybrid design ensures:
+- consistent results during demos
+- intelligent decision-making when the LLM is enabled
+
+---
+
+## ⚙️ Agent Architecture
+
+### 1. Case Intake Agent
+- Validates user input
+- Structures the case
+- (LLM) Generates risk flags and urgency level
+
+### 2. Signal Detection Agent
+- Interprets phone/wearable signals
+- Estimates signal confidence
+- Recommends priority zones
+
+### 3. Search Zone Predictor Agent
+- Combines terrain, behavior, weather, and time
+- Ranks zones by probability
+- (LLM) Refines ranking and reasoning
+
+### 4. Drone Coordination Agent
+- Assigns drones to top zones
+- Selects search patterns
+- Generates aerial objectives
+
+### 5. Volunteer Management Agent
+- Assigns ground teams
+- Matches team roles to conditions
+- Generates operational instructions
+
+---
+
+## 🧩 Project Structure
+
+search_rescue_exam_project/
 ├── app.py
-├── README.md
 ├── requirements.txt
+├── README.md
 ├── .env.example
 ├── agents/
-│   ├── __init__.py
-│   ├── case_intake_agent.py
-│   ├── signal_detection_agent.py
-│   ├── search_zone_predictor_agent.py
-│   ├── drone_coordination_agent.py
-│   └── volunteer_management_agent.py
 ├── config/
-│   ├── __init__.py
-│   ├── prompts.py
-│   └── scenarios.py
 ├── core/
-│   ├── __init__.py
-│   ├── coordinator.py
-│   ├── exceptions.py
-│   ├── llm_client.py
-│   ├── models.py
-│   ├── parsers.py
-│   └── utils.py
 └── ui/
-    ├── __init__.py
-    └── streamlit_app.py
-```
 
-## Install
+---
 
-```bash
+## 🖥️ UI Features
+
+- Interactive case input form
+- Scenario presets for quick demos
+- Real-time loading status panel
+- Tabbed agent outputs
+- Clean dashboard layout
+
+---
+
+## 🤖 LLM Integration
+
+Uses the OpenAI Responses API.
+
+- Each agent has its own prompt
+- Structured JSON outputs
+- Deterministic fallback if LLM fails
+
+---
+
+## 🔐 Setup
+
+1. Install dependencies:
+
 pip install -r requirements.txt
-```
 
-## Configure
+2. Configure environment:
 
-Copy `.env.example` to `.env` and add your API key:
-
-```bash
-OPENAI_API_KEY=your_key_here
+OPENAI_API_KEY=your_api_key_here
 OPENAI_MODEL=gpt-5.4
-```
 
-## Run
+3. Run:
 
-```bash
 streamlit run app.py
-```
 
-## Notes for Presentation
+---
 
-- The system uses the OpenAI **Responses API** through the official Python SDK.
-- The app can run in **LLM mode** or **fallback mode**.
-- This is useful in a live demo because you can show real model output while still protecting against runtime failure.
+## 🎯 Key Features
 
-## Demo Flow
+- Multi-agent system design
+- LLM + deterministic hybrid architecture
+- Robust error handling
+- Streamlit dashboard with live feedback
 
-1. Select a scenario
-2. Enable **Use LLM Enhancement**
-3. Run the search plan
-4. Explain how each agent contributes to the final mission plan
+---
+
+## 👤 Author
+
+Rodney Santana  
+University of North Georgia  
+
+---
+
+## ⚠️ Disclaimer
+
+Academic simulation only. Not for real-world emergency deployment.
