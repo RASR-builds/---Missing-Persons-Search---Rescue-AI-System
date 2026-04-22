@@ -10,7 +10,15 @@ from agents import (
 )
 from core.llm_client import LLMClient
 from core.models import DroneTask, LLMMetadata, SearchZone, SignalFinding, VolunteerTeam
-from core.utils import format_operational_summary, normalize_zone_scores
+from core.utils import (
+    ALLOWED_CONFIDENCE,
+    ALLOWED_PRIORITIES,
+    ALLOWED_URGENCY,
+    ALLOWED_ZONES,
+    format_operational_summary,
+    normalize_zone_scores,
+    validate_allowed,
+)
 
 
 class MissionCoordinator:
@@ -60,13 +68,23 @@ class MissionCoordinator:
                     self.case_intake.prompt,
                     {"case": asdict(case)},
                 )
+
+                urgency_level = validate_allowed(
+                    intake_payload.get("urgency_level", "Medium"),
+                    ALLOWED_URGENCY,
+                    "Medium",
+                )
+
+                risk_flags = intake_payload.get("risk_flags", [])
+                if not isinstance(risk_flags, list):
+                    risk_flags = []
+
                 intake_analysis = {
-                    "intake_summary": intake_payload.get(
-                        "intake_summary",
-                        "No intake summary returned."
-                    ),
-                    "risk_flags": intake_payload.get("risk_flags", []),
-                    "urgency_level": intake_payload.get("urgency_level", "Medium"),
+                    "intake_summary": str(
+                        intake_payload.get("intake_summary", "No intake summary returned.")
+                    )[:400],
+                    "risk_flags": [str(flag)[:120] for flag in risk_flags[:5]],
+                    "urgency_level": urgency_level,
                 }
                 llm_meta.agent_notes.append(
                     f"Case Intake Agent: {intake_analysis['intake_summary']}"
@@ -77,12 +95,28 @@ class MissionCoordinator:
                     self.signal_detection.prompt,
                     {"case": asdict(case), "intake_analysis": intake_analysis},
                 )
+
+                signal_type = signal_payload.get("signal_type", signal.signal_type)
+                if signal_type not in {"Phone", "Wearable", "None"}:
+                    signal_type = signal.signal_type
+
+                confidence = validate_allowed(
+                    signal_payload.get("confidence", signal.confidence),
+                    ALLOWED_CONFIDENCE,
+                    signal.confidence,
+                )
+                recommended_zone = validate_allowed(
+                    signal_payload.get("recommended_zone", signal.recommended_zone),
+                    ALLOWED_ZONES,
+                    signal.recommended_zone,
+                )
+
                 signal = SignalFinding(
-                    signal_type=signal_payload.get("signal_type", signal.signal_type),
-                    confidence=signal_payload.get("confidence", signal.confidence),
+                    signal_type=signal_type,
+                    confidence=confidence,
                     last_ping_minutes_ago=signal.last_ping_minutes_ago,
-                    recommended_zone=signal_payload.get("recommended_zone", signal.recommended_zone),
-                    rationale=signal_payload.get("rationale", signal.rationale),
+                    recommended_zone=recommended_zone,
+                    rationale=str(signal_payload.get("rationale", signal.rationale))[:400],
                 )
                 llm_meta.agent_notes.append(f"Signal Detection Agent: {signal.rationale}")
 
@@ -95,9 +129,34 @@ class MissionCoordinator:
                         "signal": asdict(signal),
                     },
                 )
-                zone_rankings = normalize_zone_scores(zones_payload.get("zone_rankings", []))
+
+                zone_rankings = zones_payload.get("zone_rankings", [])
+                if not isinstance(zone_rankings, list):
+                    zone_rankings = []
+
+                cleaned_zone_rankings = []
+                for item in zone_rankings:
+                    if not isinstance(item, dict):
+                        continue
+                    zone_name = validate_allowed(
+                        item.get("zone_name", ""),
+                        ALLOWED_ZONES,
+                        "",
+                    )
+                    if not zone_name:
+                        continue
+                    cleaned_zone_rankings.append(
+                        {
+                            "zone_name": zone_name,
+                            "probability_score": item.get("probability_score", 0),
+                            "rationale": str(item.get("rationale", ""))[:300],
+                        }
+                    )
+
+                zone_rankings = normalize_zone_scores(cleaned_zone_rankings)
                 zone_lookup = {z.zone_name: z for z in zones}
                 llm_zones = []
+
                 for item in zone_rankings:
                     zone_name = item.get("zone_name")
                     if zone_name in zone_lookup:
@@ -115,6 +174,7 @@ class MissionCoordinator:
                                 rationale=item.get("rationale", original.rationale),
                             )
                         )
+
                 if len(llm_zones) >= 2:
                     llm_zones.sort(key=lambda z: z.probability_score, reverse=True)
                     zones = llm_zones
@@ -130,19 +190,35 @@ class MissionCoordinator:
                         "zones": [asdict(z) for z in zones[:3]],
                     },
                 )
+
                 llm_drone_tasks = []
-                for idx, item in enumerate(drone_payload.get("drone_tasks", [])[:3], start=1):
+                drone_items = drone_payload.get("drone_tasks", [])
+                if not isinstance(drone_items, list):
+                    drone_items = []
+
+                for idx, item in enumerate(drone_items[:3], start=1):
+                    if not isinstance(item, dict):
+                        continue
                     fallback = drones[min(idx - 1, len(drones) - 1)]
                     llm_drone_tasks.append(
                         DroneTask(
-                            drone_id=item.get("drone_id", fallback.drone_id),
-                            zone_name=item.get("zone_name", fallback.zone_name),
-                            pattern=item.get("pattern", fallback.pattern),
+                            drone_id=str(item.get("drone_id", fallback.drone_id))[:20],
+                            zone_name=validate_allowed(
+                                item.get("zone_name", fallback.zone_name),
+                                ALLOWED_ZONES,
+                                fallback.zone_name,
+                            ),
+                            pattern=str(item.get("pattern", fallback.pattern))[:80],
                             eta_minutes=fallback.eta_minutes,
-                            priority=item.get("priority", fallback.priority),
-                            objective=item.get("objective", fallback.objective),
+                            priority=validate_allowed(
+                                item.get("priority", fallback.priority),
+                                ALLOWED_PRIORITIES,
+                                fallback.priority,
+                            ),
+                            objective=str(item.get("objective", fallback.objective))[:300],
                         )
                     )
+
                 if llm_drone_tasks:
                     drones = llm_drone_tasks
                     llm_meta.agent_notes.append("Drone Coordination Agent: LLM drone tasking applied.")
@@ -157,20 +233,36 @@ class MissionCoordinator:
                         "zones": [asdict(z) for z in zones[:3]],
                     },
                 )
+
                 llm_teams = []
-                for idx, item in enumerate(volunteer_payload.get("volunteer_teams", [])[:3], start=1):
+                volunteer_items = volunteer_payload.get("volunteer_teams", [])
+                if not isinstance(volunteer_items, list):
+                    volunteer_items = []
+
+                for idx, item in enumerate(volunteer_items[:3], start=1):
+                    if not isinstance(item, dict):
+                        continue
                     fallback = volunteers[min(idx - 1, len(volunteers) - 1)]
                     llm_teams.append(
                         VolunteerTeam(
-                            team_name=item.get("team_name", fallback.team_name),
-                            assigned_zone=item.get("assigned_zone", fallback.assigned_zone),
-                            specialty=item.get("specialty", fallback.specialty),
+                            team_name=str(item.get("team_name", fallback.team_name))[:40],
+                            assigned_zone=validate_allowed(
+                                item.get("assigned_zone", fallback.assigned_zone),
+                                ALLOWED_ZONES,
+                                fallback.assigned_zone,
+                            ),
+                            specialty=str(item.get("specialty", fallback.specialty))[:60],
                             members=fallback.members,
                             equipment=fallback.equipment,
-                            priority=item.get("priority", fallback.priority),
-                            objective=item.get("objective", fallback.objective),
+                            priority=validate_allowed(
+                                item.get("priority", fallback.priority),
+                                ALLOWED_PRIORITIES,
+                                fallback.priority,
+                            ),
+                            objective=str(item.get("objective", fallback.objective))[:300],
                         )
                     )
+
                 if llm_teams:
                     volunteers = llm_teams
                     llm_meta.agent_notes.append("Volunteer Management Agent: LLM volunteer assignments applied.")
